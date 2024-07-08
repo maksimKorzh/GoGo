@@ -2,4 +2,4 @@
 *.swo
 *.swn
 *.un~
-./src/GoGo
+/src/GoGo
