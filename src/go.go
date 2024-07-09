@@ -29,6 +29,8 @@ const (
 type Board struct {
   size int;
   position []int;
+  liberties []int;
+  group []int;
   side int;
   ko int;
 }
@@ -60,7 +62,10 @@ func (board *Board) show() {
       switch board.position[sq] {
         case EMPTY: fmt.Print(" .");
         case BLACK: fmt.Print(" X");
+        case BLACK|MARKER: fmt.Print(" #");
+        case WHITE|MARKER: fmt.Print(" #");
         case WHITE: fmt.Print(" O");
+        case LIBERTY: fmt.Print(" +");
       }
     };fmt.Println();
   };fmt.Print("   ");
@@ -70,7 +75,35 @@ func (board *Board) show() {
   if board.side == BLACK {
     fmt.Print("BLACK\n");
   } else { fmt.Print("WHITE\n"); }
-  fmt.Print("      Ko: ", board.getSquare(board.ko), "\n\n");
+  fmt.Print("      Ko: ");
+  if board.ko == EMPTY { fmt.Print("EMPTY");
+  } else { fmt.Print(board.getSquare(board.ko)); }
+  fmt.Print("\n\n    group: ", board.group, "\n    liberties: ", board.liberties);
+  fmt.Print("\n\n");
+}
+
+func (board *Board) count(sq, color int) {
+  stone := board.position[sq];
+  if stone == OFFBOARD { return; }
+  if stone > 0 && (stone & color) > 0 && (stone & MARKER) == 0 {
+    board.group = append(board.group, sq);
+    board.position[sq] |= MARKER;
+    board.count(sq+1, color);
+    board.count(sq-1, color);
+    board.count(sq+board.size, color);
+    board.count(sq-board.size, color);
+  } else if stone == EMPTY {
+    board.position[sq] |= LIBERTY;
+    board.liberties = append(board.liberties, sq);
+  }
+}
+
+func (board *Board) restore() {
+  board.group = []int{};
+  board.liberties = []int{};
+  for sq := 0; sq < board.size*board.size; sq++ {
+    if board.position[sq] != OFFBOARD { board.position[sq] &= 3; }
+  }
 }
 
 func (board *Board) getSquare(sq int) string {
@@ -86,6 +119,12 @@ func (board *Board) getSquare(sq int) string {
 func main() {
   board := new(Board);
   board.init(19);
-  board.ko = 100;
+  board.position[100] = BLACK;
+  board.position[101] = BLACK;
+  board.position[121] = BLACK;
+  board.show();
+  board.count(100, BLACK);
+  board.show();
+  board.restore();
   board.show();
 }
