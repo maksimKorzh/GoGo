@@ -110,6 +110,35 @@ func (board *Board) restore() {
   }
 }
 
+func (board *Board) play(sq, color int) bool {
+  if (board.position[sq] != EMPTY) { return false;
+  } else if (sq == board.ko) { return false; }
+  oldKo := board.ko;
+  board.ko = EMPTY;
+  board.position[sq] = color;
+  for sq := 0; sq < board.size*board.size; sq++ {
+    stone := board.position[sq];
+    if stone == OFFBOARD { continue; }
+    if (stone & (board.size-3)) > 0 {
+      board.count(sq, color-3);
+      if len(board.liberties) == 0 {
+        for i := 0; i < len(board.group); i++ {
+          board.position[board.group[i]] = EMPTY;
+        }
+      };board.restore();
+    }
+  }
+  board.count(sq, color);
+  liberties := len(board.liberties);
+  board.restore();
+  if (liberties == 0) {
+    board.position[sq] = EMPTY;
+    board.ko = oldKo;
+    return false;
+  };board.side = 3-board.side;
+  return true;
+}
+
 func (board *Board) square(sq int) string {
   row := sq / board.size-1;
   col := sq % board.size-1;
@@ -125,10 +154,11 @@ func main() {
   board.init(19);
   board.position[100] = WHITE;
   board.position[101] = WHITE;
-  board.position[121] = WHITE;
-  board.show();
-  board.count(100, WHITE);
-  board.show();
-  board.restore();
+  board.position[99] = BLACK;
+  board.position[102] = BLACK;
+  board.position[100-21] = BLACK;
+  board.position[100-20] = BLACK;
+  board.position[100+21] = BLACK;
+  board.play(122, BLACK);
   board.show();
 }
