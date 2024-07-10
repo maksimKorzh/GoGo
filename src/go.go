@@ -116,12 +116,15 @@ func (board *Board) play(sq, color int) bool {
   oldKo := board.ko;
   board.ko = EMPTY;
   board.position[sq] = color;
-  for sq := 0; sq < board.size*board.size; sq++ {
-    stone := board.position[sq];
+  for s := 0; s < board.size*board.size; s++ {
+    stone := board.position[s];
     if stone == OFFBOARD { continue; }
     if stone & (3-board.side) > 0 {
-      board.count(sq, 3-color);
+      board.count(s, 3-color);
       if len(board.liberties) == 0 {
+        if len(board.group) == 1 && board.diamond(sq) == 3-board.side {
+          board.ko = board.group[0];
+        }
         for i := 0; i < len(board.group); i++ {
           board.position[board.group[i]] = EMPTY;
         }
@@ -139,6 +142,23 @@ func (board *Board) play(sq, color int) bool {
   return true;
 }
 
+func (board *Board) diamond(sq int) int {
+  diamondColor := -1;
+  otherColor := -1;
+  var neighbours = []int{1, -1, board.size, -board.size};
+  for i := 0; i < 4; i++ {
+    if board.position[sq+neighbours[i]] == OFFBOARD { continue; }
+    if board.position[sq+neighbours[i]] == EMPTY { return 0; }
+    if diamondColor == -1 {
+      diamondColor = board.position[sq+neighbours[i]];
+      otherColor = 3-diamondColor;
+    } else if (board.position[sq+neighbours[i]] == otherColor) {
+      return 0;
+    }
+  };diamondColor &= 3;
+  return diamondColor;
+}
+
 func (board *Board) square(sq int) string {
   row := sq / board.size-1;
   col := sq % board.size-1;
@@ -153,12 +173,12 @@ func main() {
   board := new(Board);
   board.init(19);
   board.position[100] = WHITE;
-  board.position[101] = WHITE;
   board.position[99] = BLACK;
-  board.position[102] = BLACK;
+  board.position[102] = WHITE;
   board.position[100-21] = BLACK;
-  board.position[100-20] = BLACK;
+  board.position[100-20] = WHITE;
   board.position[121] = BLACK;
-  board.play(122, BLACK);
+  board.position[122] = WHITE;
+  board.play(101, BLACK);
   board.show();
 }
