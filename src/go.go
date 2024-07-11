@@ -15,6 +15,9 @@ package main
 import (
   "fmt"
   "strconv"
+  "bufio"
+  "os"
+  "strings"
 )
 
 const (
@@ -169,7 +172,55 @@ func (board *Board) square(sq int) string {
   return string(coord);
 }
 
-func main() {
+func (board *Board) gtp() {
+  reader := bufio.NewReader(os.Stdin)
+  writer := bufio.NewWriter(os.Stdout)
+  defer writer.Flush()
+  var boardSize int;
+  for {
+    userInput, err := reader.ReadString('\n')
+    if err != nil { continue; }
+    userInput = strings.TrimSpace(userInput)
+    if userInput == "" { continue;}
+    switch {
+      case strings.HasPrefix(userInput, "quit"): return;
+      case strings.HasPrefix(userInput, "name"):
+        fmt.Fprintln(writer, "= Micro Go\n");
+      case strings.HasPrefix(userInput, "version"):
+        fmt.Fprintln(writer, "= by Code Monkey King\n");
+      case strings.HasPrefix(userInput, "protocol_version"):
+        fmt.Fprintln(writer, "= 1\n");
+      case strings.HasPrefix(userInput, "showboard"):
+        fmt.Print("= current position");
+        board.show();
+      case strings.HasPrefix(userInput, "boardsize"):
+        boardSize, _ = strconv.Atoi(userInput[10:]);
+        fmt.Fprintln(writer, "=\n");
+      case strings.HasPrefix(userInput, "clear_board"):
+        board = new(Board);
+        board.init(boardSize);
+        fmt.Fprintln(writer, "=\n");
+      case strings.HasPrefix(userInput, "play"):
+        if userInput[7:] == "pass" {
+          board.side = 3-board.side;
+          board.ko = EMPTY;
+        } else {
+          var color, col, row int;
+          fmt.Sscanf(userInput, "play %c %c%d", &color, &col, &row);
+          if color == 'B' { color = BLACK; }
+          if color == 'W' { color = WHITE; }
+          if col > 'I' { col--; }
+          col = col - 'A' + 1;
+          row = board.size - 1 - row;
+          move := row * board.size + col;
+          board.play(move, color);
+        };fmt.Fprintln(writer, "=\n");
+      default: fmt.Fprintln(writer, "=\n");
+    };writer.Flush()
+  }
+}
+
+func debug() {
   board := new(Board);
   board.init(19);
   board.position[100] = WHITE;
@@ -181,4 +232,10 @@ func main() {
   board.position[122] = WHITE;
   board.play(101, BLACK);
   board.show();
+}
+
+func main() {
+  board := new(Board);
+  board.init(19);
+  board.gtp();
 }
