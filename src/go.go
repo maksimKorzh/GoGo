@@ -213,6 +213,7 @@ func (board *Board) gtp() {
           col = col - 'A' + 1;
           row = board.size - 1 - row;
           move := row * board.size + col;
+          board.side = color;
           board.play(move, color);
         };fmt.Fprintln(writer, "=\n");
       default: fmt.Fprintln(writer, "=\n");
