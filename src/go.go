@@ -18,6 +18,8 @@ import (
   "bufio"
   "os"
   "strings"
+  "math/rand"
+  "time"
 )
 
 const (
@@ -145,6 +147,79 @@ func (board *Board) play(sq, color int) bool {
   return true;
 }
 
+func (board *Board) legal(sq int) bool {
+  liberties := 0;
+  neighbours := []int{1, -1, board.size, -board.size};
+  for i := 0; i < 4; i++ {
+    if board.position[sq+neighbours[i]] == EMPTY { liberties++; }
+  };if board.position[sq] == EMPTY &&
+       liberties > 0 && sq != board.ko {
+       return true;
+  } else { return false; }
+}
+
+func (board *Board) target(color int) []int {
+  var liberties []int;
+  smallest := 100;
+  for sq := 0; sq < board.size*board.size; sq++ {
+    stone := board.position[sq];
+    if stone == OFFBOARD { continue; }
+    if stone & color > 0 {
+      board.count(sq, color);
+      if len(board.liberties) < smallest {
+        smallest = len(board.liberties);
+        liberties = board.liberties;
+      };board.restore();
+    }
+  };return liberties;
+}
+
+func (board *Board) random() int {
+  var moves []int;
+  for row := 0; row < board.size; row++ {
+    for col := 0; col < board.size; col++ {
+      if row > 2 && row < board.size - 3 &&
+         col > 2 && col < board.size - 3 {
+        moves = append(moves, row * board.size + col);
+      }
+    }
+  };return moves[rand.Intn(len(moves))];
+}
+
+func (board *Board) atari(sq, color int) bool {
+  atari := false;
+  board.count(sq, color);
+  if len(board.liberties) == 1 { atari = true; }
+  board.restore();
+  return atari;
+}
+
+func (board *Board) genmove(color int) int {
+  engine := board.target(color);
+  player := board.target(3-color);
+  if len(player) == 1 { /* engine captures player's group */
+    if player[0] != board.ko { return player[0]; }
+  }
+  if len(engine) == 1 { /* engine saves own group */
+    if board.legal(engine[0]) { return engine[0]; }
+  }
+  if len(player) > 0 && len(player) <= len(engine) { /* engine surrounds player's group */
+    randomChoice := rand.Intn(len(player));
+    if board.legal(player[randomChoice]) {
+      return player[randomChoice];
+    }
+  } else if len(engine) > 0 && len(engine) <= len(player) { /* engine extends own group */
+    randomChoice := rand.Intn(len(engine));
+    if board.legal(engine[randomChoice]) {
+      return engine[randomChoice];
+    }
+  }
+  randomMove := board.random();
+  if board.legal(randomMove) && board.position[randomMove] == EMPTY {
+    return randomMove;
+  } else { return 0; }
+}
+
 func (board *Board) diamond(sq int) int {
   diamondColor := -1;
   otherColor := -1;
@@ -166,7 +241,7 @@ func (board *Board) square(sq int) string {
   row := sq / board.size-1;
   col := sq % board.size-1;
   coord := make([]byte, 4);
-  if col > 8 { coord[0] = 'A' + byte(col) + 1;
+  if col >= 8 { coord[0] = 'A' + byte(col) + 1;
   } else { coord[0] = 'A' + byte(col); }
   copy(coord[1:], strconv.Itoa(board.size-2-row));
   return string(coord);
@@ -203,6 +278,7 @@ func (board *Board) gtp() {
         if userInput[7:] == "pass" {
           board.side = 3-board.side;
           board.ko = EMPTY;
+          fmt.Fprintln(writer, "=\n");
         } else {
           var color, col, row int;
           fmt.Sscanf(userInput, "play %c %c%d", &color, &col, &row);
@@ -216,6 +292,21 @@ func (board *Board) gtp() {
           board.play(move, color);
           fmt.Fprintln(writer, "=\n");
         }
+      case strings.HasPrefix(userInput, "genmove"):
+        color := EMPTY;
+        if userInput[8] == 'B' { color = BLACK; }
+        if userInput[8] == 'W' { color = WHITE; }
+        move := 0;
+        for i := 0; i < 100; i++ {
+          candidate := board.genmove(color);
+          if candidate > 0 {
+            move = candidate;
+            break;
+          }
+        };if move > 0 {
+          board.play(move, board.side);
+          fmt.Fprint(writer, strings.ReplaceAll(("= " + board.square(move) + "\n\n"), "\x00", ""));
+        } else { fmt.Fprint(writer, "= pass\n\n"); }
       default: fmt.Fprintln(writer, "=\n");
     };writer.Flush();
   }
@@ -236,6 +327,7 @@ func debug() {
 }
 
 func main() {
+  rand.Seed(time.Now().UnixNano());
   board := new(Board);
   board.init(19);
   board.gtp();
