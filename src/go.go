@@ -198,7 +198,6 @@ func (board *Board) genmove(color int) int {
   if len(player) > 0 && len(player) <= len(engine) { /* engine surrounds player's group */
     randomChoice := rand.Intn(len(player));
     if board.legal(player[randomChoice]) {
-      
       return player[randomChoice];
     }
   } else if len(engine) > 0 && len(engine) <= len(player) { /* engine extends own group */
@@ -218,6 +217,25 @@ func (board *Board) genmove(color int) int {
   }
 
   return 0;
+}
+
+func (board *Board) playout() {
+  move := 0;
+  passCount := 0;
+  for {
+    if passCount > 1000 { return; }
+    for i := 0; i < 100; i++ {
+      move = board.genmove(board.side);
+      if move != 0 {
+        board.play(move, board.side);
+        board.show();
+        continue;
+      } else {
+        passCount++;
+        break;
+      }
+    }
+  }
 }
 
 func (board *Board) diamond(sq int) int {
@@ -304,7 +322,7 @@ func (board *Board) gtp() {
             break;
           }
         };if move > 0 {
-          board.play(move, board.side);
+          board.play(move, color);
           fmt.Fprint(writer, strings.ReplaceAll(("= " + board.square(move) + "\n\n"), "\x00", ""));
         } else { fmt.Fprint(writer, "= pass\n\n"); }
       default: fmt.Fprintln(writer, "=\n");
@@ -330,5 +348,6 @@ func main() {
   rand.Seed(time.Now().UnixNano());
   board := new(Board);
   board.init(19);
+  board.playout();
   board.gtp();
 }
