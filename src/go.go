@@ -174,24 +174,16 @@ func (board *Board) target(color int) []int {
   };return liberties;
 }
 
-func (board *Board) random() int {
+func (board *Board) random(offset int) int {
   var moves []int;
   for row := 0; row < board.size; row++ {
     for col := 0; col < board.size; col++ {
-      if row > 2 && row < board.size - 3 &&
-         col > 2 && col < board.size - 3 {
+      if row > offset && row < board.size - (offset+1) &&
+         col > offset && col < board.size - (offset+1) {
         moves = append(moves, row * board.size + col);
       }
     }
   };return moves[rand.Intn(len(moves))];
-}
-
-func (board *Board) atari(sq, color int) bool {
-  atari := false;
-  board.count(sq, color);
-  if len(board.liberties) == 1 { atari = true; }
-  board.restore();
-  return atari;
 }
 
 func (board *Board) genmove(color int) int {
@@ -206,18 +198,26 @@ func (board *Board) genmove(color int) int {
   if len(player) > 0 && len(player) <= len(engine) { /* engine surrounds player's group */
     randomChoice := rand.Intn(len(player));
     if board.legal(player[randomChoice]) {
+      
       return player[randomChoice];
     }
   } else if len(engine) > 0 && len(engine) <= len(player) { /* engine extends own group */
     randomChoice := rand.Intn(len(engine));
     if board.legal(engine[randomChoice]) {
       return engine[randomChoice];
+    } 
+  } 
+  
+  for offset := 2; offset >= 0; offset-- {
+    randomMove := board.random(offset);
+    if board.diamond(randomMove) != 3-color &&
+       board.diamond(randomMove) != color &&
+       board.position[randomMove] == EMPTY {
+      return randomMove;
     }
   }
-  randomMove := board.random();
-  if board.legal(randomMove) && board.position[randomMove] == EMPTY {
-    return randomMove;
-  } else { return 0; }
+
+  return 0;
 }
 
 func (board *Board) diamond(sq int) int {
