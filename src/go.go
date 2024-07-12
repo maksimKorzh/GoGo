@@ -226,7 +226,7 @@ func (board *Board) playout() {
     if passCount > 1000 { return; }
     for i := 0; i < 100; i++ {
       move = board.genmove(board.side);
-      if move != 0 {
+      if move != 0 /*&& board.legal(move)*/ {
         board.play(move, board.side);
         board.show();
         continue;
@@ -322,7 +322,7 @@ func (board *Board) gtp() {
             break;
           }
         };if move > 0 {
-          board.play(move, color);
+          if board.play(move, color) == false { fmt.Fprint(writer, "= pass\n\n"); }
           fmt.Fprint(writer, strings.ReplaceAll(("= " + board.square(move) + "\n\n"), "\x00", ""));
         } else { fmt.Fprint(writer, "= pass\n\n"); }
       default: fmt.Fprintln(writer, "=\n");
@@ -348,6 +348,6 @@ func main() {
   rand.Seed(time.Now().UnixNano());
   board := new(Board);
   board.init(19);
-  board.playout();
+  //board.playout();
   board.gtp();
 }
