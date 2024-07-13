@@ -181,7 +181,7 @@ func (board *Board) diamond(sq int) int {
 }
 
 
-func (board *Board) suicide(sq int) bool {
+func (board *Board) notSuicide(sq int) bool {
   liberties := 0;
   neighbours := []int{1, -1, board.size, -board.size};
   for i := 0; i < 4; i++ {
@@ -227,22 +227,31 @@ func (board *Board) random(offset int) int {
 \*********************************************/
 
 func (board *Board) genmove(color int) int {
+  if board.size == 21 { /* engine takes corners and sides */
+    fuseki := []int { 88,340,352,100,69,129,363,297,311,371,143,77,213,227,73,367,215,225,115,325,220 };
+    randomChoice := rand.Intn(len(fuseki));
+    if board.position[fuseki[randomChoice]] == EMPTY &&
+       fuseki[randomChoice] != board.ko &&
+       board.notSuicide(fuseki[randomChoice]) {
+      return fuseki[randomChoice];
+    }
+  }
   engine := board.target(color);
   player := board.target(3-color);
   if len(player) == 1 { /* engine captures player's group */
     if player[0] != board.ko { return player[0]; }
   }
   if len(engine) == 1 { /* engine saves own group */
-    if board.suicide(engine[0]) { return engine[0]; }
+    if board.notSuicide(engine[0]) { return engine[0]; }
   }
   if len(player) > 0 && len(player) <= len(engine) { /* engine surrounds player's group */
     randomChoice := rand.Intn(len(player));
-    if board.suicide(player[randomChoice]) {
+    if board.notSuicide(player[randomChoice]) {
       return player[randomChoice];
     }
   } else if len(engine) > 0 && len(engine) <= len(player) { /* engine extends own group */
     randomChoice := rand.Intn(len(engine));
-    if board.suicide(engine[randomChoice]) {
+    if board.notSuicide(engine[randomChoice]) {
       return engine[randomChoice];
     } 
   } 
