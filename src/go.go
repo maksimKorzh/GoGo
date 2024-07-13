@@ -22,6 +22,12 @@ import (
   "time"
 )
 
+/*********************************************\
+  ===========================================
+                     BOARD
+  ===========================================
+\*********************************************/
+
 const (
   EMPTY = 0;
   BLACK = 1;
@@ -147,7 +153,35 @@ func (board *Board) play(sq, color int) bool {
   return true;
 }
 
-func (board *Board) legal(sq int) bool {
+func (board *Board) square(sq int) string {
+  row := sq / board.size-1;
+  col := sq % board.size-1;
+  coord := make([]byte, 4);
+  if col >= 8 { coord[0] = 'A' + byte(col) + 1;
+  } else { coord[0] = 'A' + byte(col); }
+  copy(coord[1:], strconv.Itoa(board.size-2-row));
+  return string(coord);
+}
+
+func (board *Board) diamond(sq int) int {
+  diamondColor := -1;
+  otherColor := -1;
+  var neighbours = []int{1, -1, board.size, -board.size};
+  for i := 0; i < 4; i++ {
+    if board.position[sq+neighbours[i]] == OFFBOARD { continue; }
+    if board.position[sq+neighbours[i]] == EMPTY { return EMPTY; }
+    if diamondColor == -1 {
+      diamondColor = board.position[sq+neighbours[i]];
+      otherColor = 3-diamondColor;
+    } else if board.position[sq+neighbours[i]] == otherColor {
+      return 0;
+    }
+  };diamondColor &= 3;
+  return diamondColor;
+}
+
+
+func (board *Board) suicide(sq int) bool {
   liberties := 0;
   neighbours := []int{1, -1, board.size, -board.size};
   for i := 0; i < 4; i++ {
@@ -186,6 +220,12 @@ func (board *Board) random(offset int) int {
   };return moves[rand.Intn(len(moves))];
 }
 
+/*********************************************\
+  ===========================================
+                  HEURISTICS
+  ===========================================
+\*********************************************/
+
 func (board *Board) genmove(color int) int {
   engine := board.target(color);
   player := board.target(3-color);
@@ -193,77 +233,34 @@ func (board *Board) genmove(color int) int {
     if player[0] != board.ko { return player[0]; }
   }
   if len(engine) == 1 { /* engine saves own group */
-    if board.legal(engine[0]) { return engine[0]; }
+    if board.suicide(engine[0]) { return engine[0]; }
   }
   if len(player) > 0 && len(player) <= len(engine) { /* engine surrounds player's group */
     randomChoice := rand.Intn(len(player));
-    if board.legal(player[randomChoice]) {
+    if board.suicide(player[randomChoice]) {
       return player[randomChoice];
     }
   } else if len(engine) > 0 && len(engine) <= len(player) { /* engine extends own group */
     randomChoice := rand.Intn(len(engine));
-    if board.legal(engine[randomChoice]) {
+    if board.suicide(engine[randomChoice]) {
       return engine[randomChoice];
     } 
   } 
-  
-  for offset := 2; offset >= 0; offset-- {
+  for offset := 2; offset >= 0; offset-- { /* tenuki */
     randomMove := board.random(offset);
     if board.diamond(randomMove) != 3-color &&
        board.diamond(randomMove) != color &&
        board.position[randomMove] == EMPTY {
       return randomMove;
     }
-  }
-
-  return 0;
+  };return 0;
 }
 
-func (board *Board) playout() {
-  move := 0;
-  passCount := 0;
-  for {
-    if passCount > 1000 { return; }
-    for i := 0; i < 100; i++ {
-      move = board.genmove(board.side);
-      if move != 0 /*&& board.legal(move)*/ {
-        board.play(move, board.side);
-        board.show();
-        continue;
-      } else {
-        passCount++;
-        break;
-      }
-    }
-  }
-}
-
-func (board *Board) diamond(sq int) int {
-  diamondColor := -1;
-  otherColor := -1;
-  var neighbours = []int{1, -1, board.size, -board.size};
-  for i := 0; i < 4; i++ {
-    if board.position[sq+neighbours[i]] == OFFBOARD { continue; }
-    if board.position[sq+neighbours[i]] == EMPTY { return EMPTY; }
-    if diamondColor == -1 {
-      diamondColor = board.position[sq+neighbours[i]];
-      otherColor = 3-diamondColor;
-    } else if board.position[sq+neighbours[i]] == otherColor {
-      return 0;
-    }
-  };diamondColor &= 3;
-  return diamondColor;
-}
-
-func (board *Board) square(sq int) string {
-  row := sq / board.size-1;
-  col := sq % board.size-1;
-  coord := make([]byte, 4);
-  if col >= 8 { coord[0] = 'A' + byte(col) + 1;
-  } else { coord[0] = 'A' + byte(col); }
-  copy(coord[1:], strconv.Itoa(board.size-2-row));
-  return string(coord);
-}
+/*********************************************\
+  ===========================================
+                      GTP
+  ===========================================
+\*********************************************/
 
 func (board *Board) gtp() {
   reader := bufio.NewReader(os.Stdin);
@@ -330,6 +327,12 @@ func (board *Board) gtp() {
   }
 }
 
+/*********************************************\
+  ===========================================
+                     MAIN
+  ===========================================
+\*********************************************/
+
 func debug() {
   board := new(Board);
   board.init(19);
@@ -348,6 +351,5 @@ func main() {
   rand.Seed(time.Now().UnixNano());
   board := new(Board);
   board.init(19);
-  //board.playout();
   board.gtp();
 }
