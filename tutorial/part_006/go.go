@@ -180,6 +180,45 @@ func (board *Board) diamond(sq int) int {
   return diamondColor;
 }
 
+func (board *Board) notSuicide(sq int) bool {
+  liberties := 0;
+  neighbours := []int{1, -1, board.size, -board.size};
+  for i := 0; i < 4; i++ {
+    if board.position[sq+neighbours[i]] == EMPTY { liberties++; }
+  };if board.position[sq] == EMPTY &&
+       liberties > 0 && sq != board.ko {
+       return true;
+  } else { return false; }
+}
+
+func (board *Board) target(color int) []int {
+  var liberties []int;
+  smallest := 100;
+  for sq := 0; sq < board.size*board.size; sq++ {
+    stone := board.position[sq];
+    if stone == OFFBOARD { continue; }
+    if stone & color > 0 {
+      board.count(sq, color);
+      if len(board.liberties) < smallest {
+        smallest = len(board.liberties);
+        liberties = board.liberties;
+      };board.restore();
+    }
+  };return liberties;
+}
+
+func (board *Board) random(offset int) int {
+  var moves []int;
+  for row := 0; row < board.size; row++ {
+    for col := 0; col < board.size; col++ {
+      if row > offset && row < board.size - (offset+1) &&
+         col > offset && col < board.size - (offset+1) {
+        moves = append(moves, row * board.size + col);
+      }
+    }
+  };return moves[rand.Intn(len(moves))];
+}
+
 /*********************************************\
   ===========================================
                   HEURISTICS
@@ -263,8 +302,6 @@ func debug() {
   board.show();
 }
 
-// TODO print '=' on play B pass
-//      col >= 8:
 func main() {
   rand.Seed(time.Now().UnixNano());
   board := new(Board);
