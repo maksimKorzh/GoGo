@@ -1,0 +1,159 @@
+package main
+
+import (
+	"fmt"
+	"math"
+	"math/rand"
+)
+
+// Board interface that needs to be implemented by the specific game
+type Board interface {
+	IsGameOver() bool
+	GenerateStates() []Board
+	GetPlayer() string
+}
+
+// TreeNode represents a node in the MCTS tree
+type TreeNode struct {
+	board           Board
+	parent          *TreeNode
+	isTerminal      bool
+	isFullyExpanded bool
+	visits          int
+	score           float64
+	children        map[string]*TreeNode
+}
+
+// NewTreeNode initializes a new tree node
+func NewTreeNode(board Board, parent *TreeNode) *TreeNode {
+	node := &TreeNode{
+		board:    board,
+		parent:   parent,
+		children: make(map[string]*TreeNode),
+	}
+
+	if board.IsGameOver() {
+		node.isTerminal = true
+		node.isFullyExpanded = true
+	} else {
+		node.isTerminal = false
+		node.isFullyExpanded = false
+	}
+
+	node.visits = 0
+	node.score = 0.0
+
+	return node
+}
+
+// MCTS struct represents the Monte Carlo Tree Search algorithm
+type MCTS struct {
+	root *TreeNode
+}
+
+// Search runs the MCTS algorithm to find the best move
+func (mcts *MCTS) Search(initialState Board) *TreeNode {
+	mcts.root = NewTreeNode(initialState, nil)
+
+	for i := 0; i < 1000; i++ {
+		node := mcts.selectNode(mcts.root)
+		score := mcts.rollout(node.board)
+		mcts.backpropagate(node, score)
+	}
+
+	bestMove, err := mcts.getBestMove(mcts.root, 0)
+	if err != nil {
+		return nil
+	}
+	return bestMove
+}
+
+// selectNode selects the most promising node
+func (mcts *MCTS) selectNode(node *TreeNode) *TreeNode {
+	for !node.isTerminal {
+		if node.isFullyExpanded {
+			node = mcts.getBestMove(node, 2)
+		} else {
+			return mcts.expand(node)
+		}
+	}
+	return node
+}
+
+// expand expands the given node by creating new children
+func (mcts *MCTS) expand(node *TreeNode) *TreeNode {
+	states := node.board.GenerateStates()
+	for _, state := range states {
+		position := fmt.Sprintf("%v", state) // Adjust to a unique key for each board state
+		if _, exists := node.children[position]; !exists {
+			newNode := NewTreeNode(state, node)
+			node.children[position] = newNode
+			if len(states) == len(node.children) {
+				node.isFullyExpanded = true
+			}
+			return newNode
+		}
+	}
+	fmt.Println("Should not get here!!!")
+	return nil
+}
+
+// rollout simulates the game via random moves until a win is reached
+func (mcts *MCTS) rollout(board Board) float64 {
+	for !board.IsGameOver() {
+		states := board.GenerateStates()
+		if len(states) == 0 {
+			return 0 // This should not happen if there's always a win condition
+		}
+		board = states[rand.Intn(len(states))]
+	}
+
+	if board.GetPlayer() == "x" {
+		return 1
+	} else {
+		return -1
+	}
+}
+
+// backpropagate updates the visits and score up to the root node
+func (mcts *MCTS) backpropagate(node *TreeNode, score float64) {
+	for node != nil {
+		node.visits++
+		node.score += score
+		node = node.parent
+	}
+}
+
+// getBestMove selects the best node based on the UCT formula
+func (mcts *MCTS) getBestMove(node *TreeNode, explorationConstant float64) *TreeNode {
+	var bestScore = math.Inf(-1)
+	var bestMoves []*TreeNode
+
+	for _, child := range node.children {
+		currentPlayer := 1.0
+		if child.board.GetPlayer() == "o" {
+			currentPlayer = -1.0
+		}
+
+		moveScore := currentPlayer*child.score/float64(child.visits) + explorationConstant*math.Sqrt(math.Log(float64(node.visits)/float64(child.visits)))
+		if moveScore > bestScore {
+			bestScore = moveScore
+			bestMoves = []*TreeNode{child}
+		} else if moveScore == bestScore {
+			bestMoves = append(bestMoves, child)
+		}
+	}
+
+	if len(bestMoves) == 0 {
+		return nil
+	}
+	return bestMoves[rand.Intn(len(bestMoves))]
+}
+
+func main() {
+	// Example usage
+	initialState := YourBoardImplementation{} // Replace with your actual board implementation
+	mcts := &MCTS{}
+	bestMove := mcts.Search(initialState)
+	fmt.Println(bestMove)
+}

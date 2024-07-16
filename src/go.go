@@ -191,6 +191,12 @@ func (board *Board) notSuicide(sq int) bool {
   } else { return false; }
 }
 
+/*********************************************\
+  ===========================================
+                  HEURISTICS
+  ===========================================
+\*********************************************/
+
 func (board *Board) target(color int) []int {
   var liberties []int;
   smallest := 100;
@@ -218,12 +224,6 @@ func (board *Board) random(offset int) int {
     }
   };return moves[rand.Intn(len(moves))];
 }
-
-/*********************************************\
-  ===========================================
-                  HEURISTICS
-  ===========================================
-\*********************************************/
 
 func (board *Board) genmove(color int) int {
   if board.size == 21 { /* engine takes corners and sides */
@@ -262,6 +262,44 @@ func (board *Board) genmove(color int) int {
        return randomMove;
     }
   };return 0; /* no legal moves found */
+}
+
+/*********************************************\
+  ===========================================
+                     MCTS
+  ===========================================
+\*********************************************/
+
+type MCTS struct {}
+
+func (mcts *MCTS) playout(board *Board) int {
+  moveNumber := 0;
+  stones := []float64{ 0, 0, 0 };
+  for moveNumber < 1500 {
+    move := board.genmove(board.side);
+    board.play(move, board.side);
+    moveNumber++;
+  }
+  board.show();
+  for sq := 0; sq < board.size*board.size; sq++ {
+    if board.position[sq] == OFFBOARD { continue; }
+    if board.position[sq] == EMPTY {
+      color := board.diamond(sq);
+      if color != EMPTY {
+        board.position[sq] = color;
+        stones[color]++;
+      } else {
+        randomColor := rand.Intn(2)+1
+        board.position[sq] = randomColor;
+        stones[randomColor]++;
+      }
+    } else {
+      stones[board.position[sq]]++;
+    }
+  }
+  board.show();
+  result := stones[BLACK] - (stones[WHITE]+7.5);
+  if result > 0 { return 1; } else { return -1; }
 }
 
 /*********************************************\
@@ -359,5 +397,8 @@ func main() {
   rand.Seed(time.Now().UnixNano());
   board := new(Board);
   board.init(19);
-  board.gtp();
+  
+  mcts := new(MCTS);
+  mcts.playout(board);
+  //board.gtp();
 }
