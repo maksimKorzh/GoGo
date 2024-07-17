@@ -207,7 +207,7 @@ func (board *Board) copy() *Board {
 }
 
 func (board *Board) isGameOver() bool {
-  return len(board.generateCandidateMoves()) == 0
+  return len(board.generateCandidateMoves()) == 0;
 }
 
 func (board *Board) playout() float64 {
@@ -273,7 +273,7 @@ func (board *Board) random(offset int) int {
 }
 
 func (board *Board) generatePlayoutMove(color int) int {
-  if board.size == 21 { /* engine takes corners and sides */
+  /*if board.size == 21 {
     fuseki := []int { 88,340,352,100,69,129,363,297,311,371,143,77,213,227,73,367,215,225,115,325,220 };
     randomChoice := rand.Intn(len(fuseki));
     if board.position[fuseki[randomChoice]] == EMPTY &&
@@ -281,7 +281,7 @@ func (board *Board) generatePlayoutMove(color int) int {
        board.notSuicide(fuseki[randomChoice]) {
        return fuseki[randomChoice];
     }
-  }
+  }*/
   engine := board.target(color);
   player := board.target(3-color);
   if len(player) == 1 { /* engine captures player's group */
@@ -313,128 +313,98 @@ func (board *Board) generatePlayoutMove(color int) int {
 
 func (board *Board) generateCandidateMoves() []int {
   var moves []int;
-  for _, move := range []int{ 88,340,352,100 } { moves = append(moves, move); }
+  //for _, move := range []int{ 88,340,352,100 } { moves = append(moves, move); }
   for _, move := range board.target(BLACK) { moves = append(moves, move); };
   for _, move := range board.target(WHITE) { moves = append(moves, move); };
   moves = append(moves, board.random(2));
   return moves;
 }
+
 /*********************************************\
   ===========================================
                      MCTS
   ===========================================
 \*********************************************/
 
-// Node represents a node in the Monte Carlo Tree
-type Node struct {
-	state    *Board // State of the board at this node
-	parent   *Node  // Parent node
-	children []*Node
-	visits   int     // Number of visits to this node
-	score    float64 // Cumulative score for this node's state
-}
-
-// UCT constant for balancing exploration and exploitation
 const UCTConstant = 1.41
 
-// UCTScore calculates the UCT (Upper Confidence Bound for Trees) score for a node
-func UCTScore(totalVisits int, nodeVisits int, nodeScore float64) float64 {
-	if nodeVisits == 0 {
-		return math.Inf(1)
-	}
-	return nodeScore/float64(nodeVisits) + UCTConstant*math.Sqrt(math.Log(float64(totalVisits))/float64(nodeVisits))
+type Node struct { /* MCTS tree node */
+  state    *Board;
+  parent   *Node;
+  children []*Node;
+  visits   int;
+  score    float64;
 }
 
-// MCTS runs the Monte Carlo Tree Search algorithm
 func MCTS(rootState *Board, iterations int) int {
-	root := &Node{state: rootState, parent: nil, children: nil, visits: 0, score: 0.0}
+  root := &Node{ state: rootState, parent: nil, children: nil, visits: 0, score: 0.0 };
+  for i := 0; i < iterations; i++ { /* selection phase */
+    fmt.Println("MCTS iteration:", i);
+    node := root;
+    for len(node.children) > 0 {
+      bestScore := -math.Inf(1);
+      var bestChild *Node;
+      for _, child := range node.children {
+        score := 0.0;
+        if child.visits == 0 {
+          score = math.Inf(1);
+        } else {
+          score = child.score/float64(child.visits) + UCTConstant*math.Sqrt(math.Log(float64(node.visits))/float64(child.visits));
+        };if score > bestScore {
+          bestScore = score;
+          bestChild = child;
+        }
+      };node = bestChild;
+    }
+    if !node.state.isGameOver() { /* expansion phase */
+      moves := node.state.generateCandidateMoves();
+      for _, move := range moves {
+        childState := node.state.copy();
+        if !childState.play(move, childState.side) { continue; }
+        child := &Node{ state: childState, parent: node, children: nil, visits: 0, score: 0.0 };
+        node.children = append(node.children, child);
+      }
+      node = node.children[rand.Intn(len(node.children))];
+    }
+    simState := node.state.copy(); simResult := simState.playout(); /* simulation phase */
+    for node != nil { /* backpropagation phase */
+      node.visits++;
+      node.score += simResult;
+      node = node.parent;
+    }
+  }
+  
+  if len(root.children) == 0 { return 0; } /* pass */
 
-	for i := 0; i < iterations; i++ {
-		node := root
-		// Selection phase: navigate down the tree based on UCT score until a leaf node is reached
-		for len(node.children) > 0 {
-			bestScore := -math.Inf(1)
-			var bestChild *Node
-			for _, child := range node.children {
-				score := UCTScore(node.visits, child.visits, child.score)
-				if score > bestScore {
-					bestScore = score
-					bestChild = child
-				}
-			}
-			node = bestChild
-		}
+  bestMove := EMPTY;
+  bestVisits := -1;
+  for _, child := range root.children {
+    if child.visits > bestVisits {
+      bestVisits = child.visits;
+      bestMove = child.state.lastMove;
+    }
+  }
 
-		// Expansion phase: expand the selected node if it's not terminal
-		if !node.state.isGameOver() {
-			moves := node.state.generateCandidateMoves()
-			for _, move := range moves {
-				childState := node.state.copy() // Make a copy of the board
-				if !childState.play(move, childState.side) { continue; }      // Apply the move
-				child := &Node{state: childState, parent: node, children: nil, visits: 0, score: 0.0}
-				node.children = append(node.children, child)
-			}
-			node = node.children[rand.Intn(len(node.children))] // Choose a random child to simulate
-		}
-
-		// Simulation phase: simulate a random playout from the selected node
-		simState := node.state.copy()
-		simResult := simulateRandomPlayout(simState)
-
-		// Backpropagation phase: propagate the result back up the tree
-		for node != nil {
-			node.visits++
-			node.score += simResult
-			node = node.parent
-		}
-	}
-
-  /*fmt.Println("Root Node:")
-  fmt.Printf("Visits: %d  ", root.visits)
+  fmt.Print("Best Move: ", root.state.square(bestMove));
+  fmt.Printf("Visits: %d  ", root.visits);
   if root.visits > 0 {
-      winRate := root.score / float64(root.visits)
-      fmt.Printf("Win Rate: %.2f\n", winRate)
+    winRate := root.score / float64(root.visits);
+    fmt.Printf("Win Rate: %.2f\n", winRate);
   }
 
   if len(root.children) > 0 {
-      fmt.Println("Children Nodes:")
-      for _, child := range root.children {
-          fmt.Printf("Move: %v, Visits: %d ", child.state.lastMove, child.visits)
-          if child.visits > 0 {
-              winRate := child.score / float64(child.visits)
-              fmt.Printf("Win Rate: %.2f\n", winRate)
-          }
-      }
-  }*/
+    fmt.Println("Children Nodes:");
+    for _, child := range root.children {
+      fmt.Printf("Move: %v, Visits: %d ", child.state.square(child.state.lastMove), child.visits);
+      if child.visits > 0 {
+        winRate := child.score / float64(child.visits);
+        fmt.Printf("Win Rate: %.2f\n", winRate);
+      } else { fmt.Println(); }
+    }
+  }
 
-	// Select the best move based on the most visited child
-	bestMove := getBestMove(root)
-	//fmt.Printf("Best Move: %v\n", root.state.square(bestMove))
-	return bestMove
+  return bestMove;
 }
-
-// simulateRandomPlayout simulates a random playout from a given board state
-func simulateRandomPlayout(state *Board) float64 {
-	currentState := state.copy()
-	return currentState.playout() // Returns 1 if black wins, -1 if white wins
-}
-
-// getBestMove selects the move with the highest visit count
-func getBestMove(root *Node) int {
-	bestMove := -1
-	bestVisits := -1
-	for _, child := range root.children {
-		if child.visits > bestVisits {
-			bestVisits = child.visits
-			bestMove = child.state.lastMove
-		}
-	}
-	return bestMove
-}
-
-// Assume Board, generateCandidateMoves(), makeMove(), copy(), isGameOver(), playout(), and lastMove() methods are implemented
-
-
 
 /*********************************************\
   ===========================================
@@ -491,15 +461,9 @@ func (board *Board) gtp() {
         color := EMPTY;
         if userInput[8] == 'B' { color = BLACK; }
         if userInput[8] == 'W' { color = WHITE; }
-        move := 0;
-        for i := 0; i < 100; i++ {
-          board.side = color;
-          candidate := MCTS(board, 10);
-          if candidate > 0 {
-            move = candidate;
-            break;
-          }
-        };if move > 0 {
+        board.side = color;
+        move := MCTS(board, 10);
+        if move > 0 {
           if board.play(move, color) == false { fmt.Fprint(writer, "= pass\n\n"); }
           fmt.Fprint(writer, strings.ReplaceAll(("= " + board.square(move) + "\n\n"), "\x00", ""));
         } else { fmt.Fprint(writer, "= pass\n\n"); }
