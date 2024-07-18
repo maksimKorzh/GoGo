@@ -385,7 +385,7 @@ func MCTS(rootState *Board, iterations int) int {
   }
 
   fmt.Print("Best move:", root.state.square(bestMove));
-  fmt.Printf("Visits: %d", root.visits);
+  fmt.Printf(" Visits: %d ", root.visits);
   if root.visits > 0 {
     winRate := root.score / float64(root.visits);
     fmt.Printf("Win rate: %.2f\n", winRate);
@@ -477,6 +477,7 @@ func (board *Board) gtp() {
   ===========================================
 \*********************************************/
 
+// TODO:
 func main() {
   rand.Seed(time.Now().UnixNano());
   board := new(Board);
