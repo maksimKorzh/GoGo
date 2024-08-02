@@ -1,2 +1,2 @@
 # GoGo
-A didactic MCTS based Go/Weiqi/Baduk playing program
+A didactic MCTS based Go/Weiqi/Baduk playing program template framework
